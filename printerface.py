@@ -12,7 +12,7 @@ from PyQt5.QtCore import QAbstractListModel
 
 # Library
 
-class File(self):
+class File(object):
 	def __init__(self, path):
 		self.path = path
 
