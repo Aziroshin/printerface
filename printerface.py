@@ -4,6 +4,9 @@
 # Python
 from pathlib import Path
 import os
+import signal
+import pyudev
+from collections import UserList
 
 # Qt
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QPushButton, QTabWidget, QListView
@@ -12,6 +15,53 @@ from PyQt5.QtCore import QAbstractListModel
 # Local
 
 # Library
+
+class Volume(object):
+	"""A storage volume.
+	Takes:
+		- device (pyudev.Device)
+			Device object as provided by pyudev."""
+	def __init__(self, device):
+		self.device = device
+		
+class Volumes(UserList):
+	
+	SUBSYSTEM=None #NOTE: That approach may need a little work.
+	DEVTYPE=None
+	
+	def __init__(self):
+		self.data = self.freshVolumeList
+		
+	@property
+	def freshVolumeList(self):
+		"""List of device objects."""
+		
+		return [Volume(d) for d in pyudev.Context().list_devices(**self.filterTerms)]
+	
+	@property
+	def filterTerms(self):
+		"""Filter terms to narrow down device selection.
+		The kind of stuff you pass to pyudev.Context().list_devices().
+		Returns a dict which you'll want to expand when calling pyudev matching methods."""
+		filterTerms = {}
+		if not self.subsystem == None:
+			filterTerms["subsystem"] = self.subsystem
+		if not self.devtype == None:
+			filterTerms["DEVTYPE"] = self.devtype
+		return filterTerms
+	
+	@property
+	def subsystem(self):
+		"""Subsystem as it would be passed to pyudev.Context().list_devices(SUBSYSTEM=)."""
+		return self.__class__.SUBSYSTEM
+	
+	@property
+	def devtype(self):
+		"""Device types as it would be passed to pyudev.Context().list_devices(DEVTYPE=)."""
+		return self.__class__.DEVTYPE
+	
+class UsbVolume(Volume):
+	SUBSYSTEM="usb"
 
 class File(object):
 	
@@ -123,6 +173,9 @@ class Tabs(QTabWidget):
 class Printerface(QApplication):
 	pass
 
+# Make ctrl+c work with Qt by restoring SIGINT's default behaviour.
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
 printerface = Printerface([])
 #printerface._setUp()
 
@@ -136,4 +189,6 @@ window = QWidget()
 window.setLayout(layout)
 window.show()
 
-printerface.exec_()
+#printerface.exec_()
+volumes = Volumes()
+print(volumes)
