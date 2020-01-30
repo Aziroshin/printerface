@@ -14,14 +14,11 @@ from PyQt5.QtCore import QAbstractListModel
 # Library
 
 class File(object):
-<<<<<<< HEAD
 	
 	"""Handler for a file at a given path.
 	Takes: 
 		- path (str | Path): Path of the file."""
-	
-=======
->>>>>>> c4f55705ed7d13f4594959622c97380a4fe96d87
+
 	def __init__(self, path):
 		self.path = Path(path)
 	
