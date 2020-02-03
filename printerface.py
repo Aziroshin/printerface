@@ -6,62 +6,161 @@ from pathlib import Path
 import os
 import signal
 import pyudev
-from collections import UserList
+from collections import UserList, UserDict
+from typing import NamedTuple
+import subprocess
+import psutil
 
 # Qt
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QPushButton, QTabWidget, QListView
 from PyQt5.QtCore import QAbstractListModel
 
+# Debugging
+import sys
+
 # Local
 
 # Library
 
+class ReadOnlyUserList(UserList):
+	
+	"""UserList with a blind setter method for self.data.
+	Override the data property to expose the read-only list."""
+	
+	@property
+	def data(self):
+		"""Override in subclass. Has to return a list."""
+		pass
+	@data.setter
+	def data(self):
+		"""We're read-only, we don't set. Exists to make collections.UserList happy."""
+		pass
+
+class Mount(object):
+	
+	"""Represents an entry of /proc/mounts.
+	The format of /proc/mounts is rendered as attributes, like this (one line):
+		source target fstype options dumpFlag passFlag
+		These correspond to self.source, self.target... you get the idea.
+	Takes (str):
+		source target, fstype, options, dumpFlag, passFlag
+	__repr__ is customized to properly reflect these attributes and their values."""
+	
+	
+	def __init__(self, source, target, fstype, options, dumpFlag, passFlag):
+		self.source = source
+		self.target = target
+		self.fstype = fstype
+		self.options = options
+		self.dumpFlag = dumpFlag
+		self.passFlag = passFlag
+		
+	def __repr__(self):
+		return "(source={source}, target={target}, fstype={fstype}, options={options}, dump={dumpFlag}, pass={passFlag})".format(\
+			source=self.source, target=self.target, fstype=self.fstype,\
+			options=self.options, dumpFlag=self.dumpFlag, passFlag=self.passFlag)
+		
+class Mounts(ReadOnlyUserList):
+	
+	"""Read-only list of Mount objects."""
+	
+	@property
+	def data(self):
+		return self.fresh
+	
+	@data.setter
+	def data(self, dataList):
+		"""This needs never be written to. Exists to make collections.UserList happy."""
+		pass
+	
+	@property
+	def fresh(self):
+		"""A list of Mount objects, freshly initialized from /proc/mounts."""
+		rawLines = self.raw.strip().split("\n")
+		mounts = []
+		for line in rawLines:
+			#We're working around the mount target, to avoid whitespace issues.
+			source, rawRest = line.partition(" ")[0::2]
+			target, fstype, options, dumpFlag, passFlag = rawRest.rsplit(" ", maxsplit=4)
+			mounts.append(Mount(\
+				source=source,\
+				target=target,\
+				fstype=fstype,\
+				options=options,\
+				dumpFlag=dumpFlag,\
+				passFlag=passFlag\
+			))
+		return mounts
+	
+	@property
+	def raw(self):
+		"""Raw content of /proc/mounts."""
+		with open("/proc/mounts", "r") as mountsProcFile:
+			return mountsProcFile.read()
+
 class Volume(object):
+	
 	"""A storage volume.
 	Takes:
 		- device (pyudev.Device)
 			Device object as provided by pyudev."""
+			
 	def __init__(self, device):
 		self.device = device
 		
-class Volumes(UserList):
+	@property
+	def mountInfo(self):
+		"""Mount object holding info on how we're mounted, if at all.
+		Returns None if no entry could be found in /proc/mounts."""
+		try:
+			return list(filter(lambda m: m.source == self.device.device_node, Mounts()))[0]
+		except IndexError:
+			return None
 	
-	SUBSYSTEM=None #NOTE: That approach may need a little work.
-	DEVTYPE=None
-	
-	def __init__(self):
-		self.data = self.freshVolumeList
+	@property
+	def mounted(self):
+		"""If there is no entry in /proc/mounts, we'll consider ourselves not mounted.
+		Returns True if we're mounted, False if not."""
+		return not self.mountInfo is None
 		
 	@property
-	def freshVolumeList(self):
-		"""List of device objects."""
+	def mountPoint(self):
+		"""Path object for the mount point path.
+		Returns None if we aren't mounted."""
+		if self.mounted:
+			return self.mountInfo.target
+		else:
+			return None
 		
-		return [Volume(d) for d in pyudev.Context().list_devices(**self.filterTerms)]
+	def __repr__(self):
+		return "<device={device}, mountInfo={mountInfo}>"\
+			.format(device=self.device, mountInfo=self.mountInfo)
+	
+class UsbVolumes(ReadOnlyUserList):
+	
+	def __init__(self, onlyMounted=False):
+		self.onlyMounted = onlyMounted
 	
 	@property
-	def filterTerms(self):
-		"""Filter terms to narrow down device selection.
-		The kind of stuff you pass to pyudev.Context().list_devices().
-		Returns a dict which you'll want to expand when calling pyudev matching methods."""
-		filterTerms = {}
-		if not self.subsystem == None:
-			filterTerms["subsystem"] = self.subsystem
-		if not self.devtype == None:
-			filterTerms["DEVTYPE"] = self.devtype
-		return filterTerms
+	def usbStorageFilterTerms(self):
+		"""Filtering for these attributes will yield USB storage partitions only."""
+		return {"DEVTYPE": "partition", "ID_USB_DRIVER": "usb-storage"}
 	
 	@property
-	def subsystem(self):
-		"""Subsystem as it would be passed to pyudev.Context().list_devices(SUBSYSTEM=)."""
-		return self.__class__.SUBSYSTEM
-	
-	@property
-	def devtype(self):
-		"""Device types as it would be passed to pyudev.Context().list_devices(DEVTYPE=)."""
-		return self.__class__.DEVTYPE
-	
-class UsbVolume(Volume):
-	SUBSYSTEM="usb"
+	def data(self):
+		
+		""""""
+		
+		volumes = []
+		
+		for device in pyudev.Context().list_devices(DEVTYPE="partition"):
+			if device.get("ID_USB_DRIVER") == "usb-storage":
+				volumes.append(Volume(device))
+		
+		if self.onlyMounted:
+			return [v for v in volumes if v.mounted]
+		else:
+			return volumes
 
 class File(object):
 	
@@ -173,6 +272,14 @@ class Tabs(QTabWidget):
 class Printerface(QApplication):
 	pass
 
+# ============================================
+# Below follows some caveman dev-code
+# for caveman prototyping and testing.
+# ============================================
+
+# ============================================
+# Prepare GUI
+
 # Make ctrl+c work with Qt by restoring SIGINT's default behaviour.
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -189,6 +296,17 @@ window = QWidget()
 window.setLayout(layout)
 window.show()
 
+# ============================================
+# Work towards getting file list.
+volumes = UsbVolumes(onlyMounted=True)
+#partitions = lambda p: p if p.device in [v.device.device_node for v in volumes] else None
+#print([n for n in psutil.disk_partitions()])
+#print([m for m in map(partitions, psutil.disk_partitions())])
+#print([f for f in filter(lambda p: p.device in [v.device.device_node for v in volumes], psutil.disk_partitions())])
+#print(["Links: "+"".join([l for l in v.device.device_links]) for v in volumes])
+
+print([v.mountPoint for v in volumes])
+
+# ============================================
+# Get GUI.
 #printerface.exec_()
-volumes = Volumes()
-print(volumes)
