@@ -27,18 +27,33 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="settings">
      <attribute name="title">
       <string>Settings</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="root">
+    <widget class="QWidget" name="devices">
+     <attribute name="title">
+      <string>Dev</string>
+     </attribute>
+     <widget class="QTableView" name="devicesView">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>472</width>
+        <height>283</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="files">
      <attribute name="title">
       <string>/</string>
      </attribute>
-     <widget class="QTableView" name="tableView">
+     <widget class="QTableView" name="filesView">
       <property name="geometry">
        <rect>
         <x>0</x>
