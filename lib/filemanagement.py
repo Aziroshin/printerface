@@ -12,7 +12,7 @@ class File(object):
 	"""Handler for a file at a given path.
 	Takes: 
 		- path (str | Path): Path of the file."""
-
+		
 	def __init__(self, path):
 		self.path = Path(path)
 	
@@ -210,7 +210,9 @@ class UsbVolumes(ReadOnlyUserList):
 	
 	@property
 	def data(self):
+		return self.fresh()
 		
+	def fresh(self):
 		"""This will be executed every time the list is being read."""
 		
 		volumes = []
