@@ -37,16 +37,17 @@ class FileListModel(QAbstractTableModel):
 class UsbVolumeListModel(QAbstractTableModel):
 	
 	def __init__(self, parent=None):
+		super().__init__(parent)
 		self.mountedVolumes = UsbVolumes(onlyMounted=True)
 	
 	def data(self, index, role):
 		return self.mountedVolumes[index.row()]
 	
-	def setData(self):
-		pass#TODO
+	#def setData(self):
+		#pass#TODO
 	
-	def flags(self):
-		pass#TODO
+	#def flags(self):
+		#pass#TODO
 	
 	def rowCount(self, parent=None):
 		return len(self.mountedVolumes)
@@ -67,13 +68,22 @@ class PrinterfaceWindow(QMainWindow):
 		super().__init__()
 		uic.loadUi(Path(Path(__file__).resolve().parent, "ui/main.ui"), self)
 		self._initUi()
+		self._initAbstractDataModels()
 		self.show()
 		
 	def _initUi(self):
 		"""Sets up the layout according to the .ui file.
 		If changes to the .ui file are made, this is where it's at."""
-		from PyQt5.QtWidgets import QTabWidget
+		from PyQt5.QtWidgets import QTabWidget, QTableView
 		self.tabs = self.findChild(QTabWidget, "tabs")
+		self.devicesView = self.findChild(QTableView, "devicesView")
+		self.filesView = self.findChild(QTableView, "filesView")
+		
+	def _initAbstractDataModels(self):
+		"""Associates QAbstract...Model classes with views.
+		Changes to the model architecture that affect this class
+		are supposed to be reflected here."""
+		self.devicesView.setModel(UsbVolumeListModel())
 		
 class PrinterfaceApp(QApplication):
 	pass
@@ -110,4 +120,4 @@ print([v.mountPoint for v in volumes])
 
 # ============================================
 # Get GUI.
-#printerfaceApp.exec_()
+printerfaceApp.exec_()
