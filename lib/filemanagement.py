@@ -3,6 +3,8 @@
 # Python imports
 import pyudev
 from pathlib import Path
+from collections import UserString
+import subprocess
 
 # Internal imports
 from lib.datatypes import ReadOnlyUserList
@@ -118,6 +120,55 @@ class Mount(object):
 			source=self.source, target=self.target, fstype=self.fstype,\
 			options=self.options, dumpFlag=self.dumpFlag, passFlag=self.passFlag)
 		
+		
+class Mount(object):
+	
+	"""Represents the output of df.
+		Object attributes are mapped from df's output as follows:
+			Filesystem: .source (str)
+			Size: .size (Size)
+			Used: .used (Size)
+			Avail: .unused (Size)
+			Use%: .free (Size)
+			Mounted on: .target (Path)
+	"""
+	
+	class Size(UserString):
+		
+		"""Size in bytes, with attributes providing conversions.
+			Conversion attributes available:
+				self.asKiB, self.asMiB and self.asGiB."""
+		
+		def __init__(self, size):
+			self.data = size
+		
+		@property
+		def asKiB(self):
+			return type(self)(int(self)/1024)
+		
+		@property
+		def asMiB(self):
+			return type(self)(int(self.asKiB)/1024)
+		
+		@property
+		def asGiB(self):
+			return type(self)(int(self.asMiB)/1024)
+	
+	def __init__(self, source, size, used, unused, free, target):
+		self.source = source
+		self.size = size
+		self.used = used
+		self.unused = unused
+		self.free = free
+		self.target = target
+	
+	def __repr__(self):
+		return "<Filesystem (source): {source}, Size (size): {size},"\
+			"Used (used): {used}, Avail (unused): {used}, Avail (unused): {unused},"\
+			"Use% (free): {free}, Mounted on (target): {target}>"\
+			.format(source=self.source, size=self.size, used=self.used,\
+			unused=self.unused, free=self.free, target=self.target)
+	
 class Mounts(ReadOnlyUserList):
 	
 	"""Read-only list of Mount objects."""
@@ -133,28 +184,26 @@ class Mounts(ReadOnlyUserList):
 	
 	@property
 	def fresh(self):
-		"""A list of Mount objects, freshly initialized from /proc/mounts."""
-		rawLines = self.raw.strip().split("\n")
+		"""A list of Mount objects as provided by the df command."""
+		rawLines = self.rawLines
 		mounts = []
 		for line in rawLines:
-			#We're working around the mount target, to avoid whitespace issues.
-			source, rawRest = line.partition(" ")[0::2]
-			target, fstype, options, dumpFlag, passFlag = rawRest.rsplit(" ", maxsplit=4)
-			mounts.append(Mount(\
-				source=source,\
-				target=target,\
-				fstype=fstype,\
-				options=options,\
-				dumpFlag=dumpFlag,\
-				passFlag=passFlag\
-			))
+			# We're explicitely splitting 5 times to make sure we don't get
+			# caught up in whitespaces in the mount point path (last column).
+			source, size, used, unused, free, target =\
+				[i.strip() for i in line.split(maxsplit=5)]
+			mounts.append(Mount(source, size, used, unused, free, target))
 		return mounts
 	
 	@property
 	def raw(self):
-		"""Raw content of /proc/mounts."""
-		with open("/proc/mounts", "r") as mountsProcFile:
-			return mountsProcFile.read()
+		"""Raw df output."""
+		return subprocess.check_output("df").decode()
+	
+	@property
+	def rawLines(self):
+		"""Raw df output split into lines."""
+		return self.raw.strip().split("\n")
 
 class Volume(object):
 	
