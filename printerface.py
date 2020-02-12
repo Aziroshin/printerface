@@ -41,7 +41,7 @@ class UsbVolumeListModel(QAbstractTableModel):
 		self.mountedVolumes = UsbVolumes(onlyMounted=True)
 	
 	def data(self, index, role):
-		return self.mountedVolumes[index.row()]
+		return self.mountedVolumes[index.row()].mountPoint.as_posix()
 	
 	#def setData(self):
 		#pass#TODO
