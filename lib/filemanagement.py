@@ -202,6 +202,7 @@ class UsbVolumes(ReadOnlyUserList):
 	
 	def __init__(self, onlyMounted=False):
 		self.onlyMounted = onlyMounted
+		self._cached = None
 	
 	@property
 	def usbStorageFilterTerms(self):
@@ -210,11 +211,19 @@ class UsbVolumes(ReadOnlyUserList):
 	
 	@property
 	def data(self):
-		return self.fresh()
+		"""Returns cached (maybe stale) list of USB volumes."""
+		return self.cached
 		
+	@property
+	def cached(self):
+		"""A fresh or stale list of USB volumes."""
+		if self._cached == None:
+			self.refreshCache()
+		return self._cached
+		
+	@property
 	def fresh(self):
-		"""This will be executed every time the list is being read."""
-		
+		"""A fresh list of USB volumes."""
 		volumes = []
 		for device in pyudev.Context().list_devices(DEVTYPE="partition"):
 			if device.get("ID_USB_DRIVER") == "usb-storage":
@@ -224,3 +233,7 @@ class UsbVolumes(ReadOnlyUserList):
 			return [v for v in volumes if v.mounted]
 		else:
 			return volumes
+		
+	def refreshCache(self):
+		"""Initialize in-memory cache with a fresh list of USB volumes."""
+		self._cached = self.fresh
