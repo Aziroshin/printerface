@@ -3,11 +3,13 @@
 # Python imports
 import pyudev
 from pathlib import Path
-from collections import UserString
+from collections import UserString, UserDict
 import subprocess
+import json
 
 # Internal imports
 from lib.datatypes import ReadOnlyUserList
+from lib.lsblk import LsblkBlockdevices, LsblkSelector
 
 class File(object):
 	
@@ -120,7 +122,6 @@ class Mount(object):
 			source=self.source, target=self.target, fstype=self.fstype,\
 			options=self.options, dumpFlag=self.dumpFlag, passFlag=self.passFlag)
 		
-		
 class Mount(object):
 	
 	"""Represents the output of df.
@@ -204,7 +205,8 @@ class Mounts(ReadOnlyUserList):
 	def rawLines(self):
 		"""Raw df output split into lines."""
 		return self.raw.strip().split("\n")
-
+	
+	
 class Volume(object):
 	
 	"""A storage volume.
@@ -212,8 +214,8 @@ class Volume(object):
 		- device (pyudev.Device)
 			Device object as provided by pyudev."""
 			
-	def __init__(self, device):
-		self.device = device
+	def __init__(self, kname, mountpoint, label, uuid, model, size, deviceType, subsystems):
+		self.device
 		
 	@property
 	def mountInfo(self):
@@ -243,20 +245,37 @@ class Volume(object):
 		return "<device={device}, mountInfo={mountInfo}>"\
 			.format(device=self.device, mountInfo=self.mountInfo)
 		
+class LsblkUsbSelector(LsblkSelector):
+	
+	"""Selects USB devices only.
+	Must include "subsystems" column, lest the filtering will fail."""
+	
+	@property
+	def columns(self):
+		"""This makes sure the "subsystems" column is included."""
+		return super().columns+["subsystems"]
+	
+	def filter(self, item):
+		"""Filters out any non-USB devices."""
+		# .split is used to make exact string matches, not substring.
+		return "usb" in item[1]["subsystems"].split(":")
+		return False
+		
 class UsbVolumes(ReadOnlyUserList):
 	
 	"""A list of Volume objects for USB device hosted partitions.
 		If self.onlyMounted, will contain mounted ones only.
 		Otherwise, it'll contain all USB volumes it finds."""
 	
-	def __init__(self, onlyMounted=False):
+	def __init__(self, onlyMounted=False, lsblkSelector=LsblkUsbSelector()):
+		self.lsblkSelector = lsblkSelector
 		self.onlyMounted = onlyMounted
 		self._cached = None
 	
 	@property
-	def usbStorageFilterTerms(self):
-		"""Filtering for these attributes will yield USB storage partitions only."""
-		return {"DEVTYPE": "partition", "ID_USB_DRIVER": "usb-storage"}
+	def lsblkColumns(self):
+		"""List of columns lsblk should return data for."""
+		return ["kname", "mountpoint", "label", "uuid", "model", "size", "type", "subsystems"]
 	
 	@property
 	def data(self):
@@ -274,14 +293,9 @@ class UsbVolumes(ReadOnlyUserList):
 	def fresh(self):
 		"""A fresh list of USB volumes."""
 		volumes = []
-		for device in pyudev.Context().list_devices(DEVTYPE="partition"):
-			if device.get("ID_USB_DRIVER") == "usb-storage":
-				volumes.append(Volume(device))
+		lsblkVoumes = LsblkBlockdevices(self.lsblkSelector)
+		return volumes
 		
-		if self.onlyMounted:
-			return [v for v in volumes if v.mounted]
-		else:
-			return volumes
 		
 	def refreshCache(self):
 		"""Initialize in-memory cache with a fresh list of USB volumes."""
