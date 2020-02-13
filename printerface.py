@@ -15,17 +15,23 @@ from PyQt5 import uic
 import sys
 
 # Local imports
-from lib.filemanagement import UsbVolumes
+from lib.filemanagement import UsbVolumes, LsblkUsbSelector
+from lib.lsblk import LsblkBlockdevices
 from lib.configfiles import ConfigFile
 
 # Library
+
+class LsblkPrinterfaceUsbSelector(LsblkUsbSelector):
+	@property
+	def columns(self):
+		return ["kname", "mountpoint", "label", "uuid", "model", "size", "type", "subsystems"]
 
 class FileListModel(QAbstractTableModel):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		self.files = []
-		#test
+		#NOTE: test
 		self.files.append("lala")
 	
 	def data(self, index, role):
@@ -116,8 +122,10 @@ window = PrinterfaceWindow()
 # ============================================
 # Work towards getting file list.
 volumes = UsbVolumes(onlyMounted=True)
-print([v.mountPoint for v in volumes])
+#print([v.mountPoint for v in volumes])
+devices = LsblkBlockdevices(LsblkPrinterfaceUsbSelector())
+print(devices.columnAsList("kname"))
 
 # ============================================
 # Get GUI.
-printerfaceApp.exec_()
+#printerfaceApp.exec_()
