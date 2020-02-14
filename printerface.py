@@ -15,7 +15,8 @@ from PyQt5 import uic
 import sys
 
 # Local imports
-from lib.filemanagement import UsbVolumes, LsblkUsbSelector
+from lib.volumes import UsbVolumes
+from lib.lsblkselectors import LsblkUsbSelector
 from lib.lsblk import LsblkBlockdevices
 from lib.configfiles import ConfigFile
 
@@ -60,7 +61,6 @@ class UsbVolumeListModel(QAbstractTableModel):
 	
 	def columnCount(self, parent=None):
 		return 1
-	
 	
 class Tabs(QTabWidget):
 	def __init__(self):
